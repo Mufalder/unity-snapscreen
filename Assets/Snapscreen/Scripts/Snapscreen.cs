@@ -262,7 +262,11 @@ namespace NorthLab
         //Save texture2D to the disk
         private void SaveImage(Texture2D capture, string path)
         {
-            byte[] bytes = capture.EncodeToPNG();
+            //Convert RGBA32 captured texture to the RBG24 to disable alpha channel
+            Texture2D converted = new Texture2D(capture.width, capture.height, TextureFormat.RGB24, false);
+            converted.SetPixels(capture.GetPixels());
+
+            byte[] bytes = converted.EncodeToPNG();
             File.WriteAllBytes(path, bytes);
         }
 
