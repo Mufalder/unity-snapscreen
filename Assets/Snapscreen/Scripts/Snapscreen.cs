@@ -231,7 +231,7 @@ namespace NorthLab
         {
             yield return new WaitForEndOfFrame();
             Texture2D capture = ScreenCapture.CaptureScreenshotAsTexture(factor);
-            if (EditorApplication.isPlaying && crop)
+            if (Application.isPlaying && crop)
             {
                 Texture2D cropped = CropImage(capture);
                 SaveImage(cropped, path);

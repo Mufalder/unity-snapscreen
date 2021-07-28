@@ -1,4 +1,4 @@
-v1.3.2.1
+v1.3.2.2
 
 Place "Snapscreen" on empty GameObject or any other GameObject. Select approtiate resolution in Game view window of the Unity. Configure the script according to this description:
 
