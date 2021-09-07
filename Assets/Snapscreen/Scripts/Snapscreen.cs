@@ -230,17 +230,26 @@ namespace NorthLab
         private IEnumerator TakeCoroutine(string path)
         {
             yield return new WaitForEndOfFrame();
-            Texture2D capture = ScreenCapture.CaptureScreenshotAsTexture(factor);
-            if (Application.isPlaying && crop)
+
+            if (!Application.isPlaying)
             {
-                Texture2D cropped = CropImage(capture);
-                SaveImage(cropped, path);
-                onScreenshotTaken?.Invoke(path, cropped);
+                ScreenCapture.CaptureScreenshot(path);
+                yield break;
             }
             else
             {
-                SaveImage(capture, path);
-                onScreenshotTaken?.Invoke(path, capture);
+                Texture2D capture = ScreenCapture.CaptureScreenshotAsTexture(factor);
+                if (crop)
+                {
+                    Texture2D cropped = CropImage(capture);
+                    SaveImage(cropped, path);
+                    onScreenshotTaken?.Invoke(path, cropped);
+                }
+                else
+                {
+                    SaveImage(capture, path);
+                    onScreenshotTaken?.Invoke(path, capture);
+                }
             }
 
             //if GUI is hidden then unhide it
