@@ -9,15 +9,16 @@ namespace NorthLab
     {
 
         new private SerializedProperty name;
+        private SerializedProperty transparentBackground;
+        private SerializedProperty cameraMode;
+        private SerializedProperty specificCamera;
         private SerializedProperty path;
-        private SerializedProperty factor;
         private SerializedProperty useInput;
         private SerializedProperty button;
         private SerializedProperty key;
         private SerializedProperty onPrintScreen;
         private SerializedProperty dateStamp;
         private SerializedProperty useGUI;
-        private SerializedProperty unhideTime;
         private SerializedProperty guiPosition;
         private SerializedProperty position;
         private SerializedProperty crop;
@@ -33,15 +34,16 @@ namespace NorthLab
         private void OnEnable()
         {
             name = serializedObject.FindProperty("name");
+            transparentBackground = serializedObject.FindProperty("transparentBackground");
+            cameraMode = serializedObject.FindProperty("cameraMode");
+            specificCamera = serializedObject.FindProperty("specificCamera");
             path = serializedObject.FindProperty("path");
-            factor = serializedObject.FindProperty("factor");
             useInput = serializedObject.FindProperty("useInput");
             button = serializedObject.FindProperty("button");
             key = serializedObject.FindProperty("key");
             onPrintScreen = serializedObject.FindProperty("onPrintScreen");
             dateStamp = serializedObject.FindProperty("dateStamp");
             useGUI = serializedObject.FindProperty("useGUI");
-            unhideTime = serializedObject.FindProperty("unhideTime");
             guiPosition = serializedObject.FindProperty("guiPosition");
             position = serializedObject.FindProperty("position");
             crop = serializedObject.FindProperty("crop");
@@ -59,6 +61,12 @@ namespace NorthLab
         {
             serializedObject.Update();
             EditorGUILayout.PropertyField(name);
+            EditorGUILayout.PropertyField(transparentBackground);
+            EditorGUILayout.PropertyField(cameraMode);
+            if (cameraMode.enumValueIndex == 1)
+                EditorGUILayout.PropertyField(specificCamera);
+            EditorGUILayout.Space();
+
             EditorGUILayout.BeginHorizontal();
 
             EditorGUILayout.PropertyField(path);
@@ -85,7 +93,6 @@ namespace NorthLab
 
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.PropertyField(dateStamp);
-            EditorGUILayout.PropertyField(factor);
 
             EditorGUILayout.PropertyField(useInput);
             if (useInput.boolValue)
@@ -96,7 +103,6 @@ namespace NorthLab
             }
 
             EditorGUILayout.PropertyField(useGUI);
-            EditorGUILayout.PropertyField(unhideTime);
             EditorGUILayout.PropertyField(guiPosition);
             if (guiPosition.enumValueIndex == 4)
                 EditorGUILayout.PropertyField(position);
@@ -113,9 +119,6 @@ namespace NorthLab
                 EditorGUILayout.PropertyField(right);
                 EditorGUILayout.PropertyField(bottom);
                 EditorGUILayout.EndHorizontal();
-
-                if (!Application.isPlaying)
-                    EditorGUILayout.HelpBox("You can't take the cropped images in the edit mode.", MessageType.Info, true);
             }
 
             EditorGUILayout.PropertyField(compositionGrid);

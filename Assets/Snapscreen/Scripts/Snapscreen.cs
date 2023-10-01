@@ -11,14 +11,19 @@ namespace NorthLab
     public class Snapscreen : MonoBehaviour
     {
 
+        public enum CameraMode { MainCamera, SpecificCamera };
         public enum GUIPositions {LeftTop, RightTop, RightBottom, LeftBottom, Explicit };
 
         [SerializeField, Tooltip("Screenshot file name"), Header("Main")]
         new private string name = "Screenshot";
+        [SerializeField, Tooltip("Saves the captured image with alpha channel. This option will clear the background")]
+        private bool transparentBackground = false;
+        [SerializeField, Tooltip("Use MainCamera to take a screenshot or use another specific camera")]
+        private CameraMode cameraMode = CameraMode.MainCamera;
+        [SerializeField]
+        private Camera specificCamera = null;
         [SerializeField, Tooltip("Path to save a screenshot file")]
         private string path;
-        [SerializeField, Tooltip("Resolution scale multiplier. E.g.: 1024x1024 with multiplier of 2 will give 2048x2048 screenshot")]
-        private int factor = 1;
         [SerializeField, Header("Input")]
         private bool useInput = true;
         [SerializeField, Tooltip("Button name to take a screenshot from the Input settings")]
@@ -31,8 +36,6 @@ namespace NorthLab
         private bool dateStamp = true;
         [SerializeField, Tooltip("Show GUI. May cause delay while taking a screenshot"), Header("UI")]
         private bool useGUI = false;
-        [SerializeField, Tooltip("Time before GUI unhides after a screenshot taken. It's Time.deltaTime multiplier. Use bigger values if the GUI still present in the screenshots.")]
-        private float unhideTime = 6;
         [SerializeField, Tooltip("GUI position")]
         private GUIPositions guiPosition = GUIPositions.LeftTop;
         [SerializeField, Tooltip("Explicit GUI position")]
@@ -54,7 +57,7 @@ namespace NorthLab
         [SerializeField]
         private Color gridColor = Color.white;
 
-        private bool hideGUI;
+        private int windWidth, windHeight;
 
         public delegate void OnScreenshotTaken(string name, Texture2D screenshot);
         public static OnScreenshotTaken onScreenshotTaken;
@@ -63,13 +66,14 @@ namespace NorthLab
         private void Reset()
         {
             name = "Screenshot";
+            transparentBackground = false;
+            cameraMode = CameraMode.MainCamera;
+            specificCamera = null;
             path = Application.dataPath;
-            factor = 1;
             button = "Submit";
             key = KeyCode.None;
             dateStamp = true;
             useGUI = false;
-            unhideTime = 4;
             crop = false;
             compositionGrid = false;
             grid = null;
@@ -105,12 +109,13 @@ namespace NorthLab
         }
 
         //Returns game view resolution even if it's not focused
-        private Vector2 GetMainGameViewSize()
+        private Vector2Int GetMainGameViewSize()
         {
             System.Type T = System.Type.GetType("UnityEditor.GameView,UnityEditor");
             System.Reflection.MethodInfo GetSizeOfMainGameView = T.GetMethod("GetSizeOfMainGameView", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             System.Object Res = GetSizeOfMainGameView.Invoke(null, null);
-            return (Vector2)Res;
+            Vector2 resVector = (Vector2)Res;
+            return new Vector2Int((int)resVector.x, (int)resVector.y);
         }
 
         private void Update()
@@ -123,7 +128,7 @@ namespace NorthLab
             //Take screenshot by pressing button or key
             if ((!string.IsNullOrEmpty(button) && Input.GetButtonUp(button)) || Input.GetKeyUp(key))
             {
-                TakeScreenshot();
+                Take();
             }
 #endif
         }
@@ -136,10 +141,6 @@ namespace NorthLab
             {
                 TakeScreenshot();
             }
-
-            //Do not execute if GUI is hidden
-            if (hideGUI)
-                return;
 
             //Load white texture for a further drawing
             Texture2D rect = Resources.Load<Texture2D>("white");
@@ -183,27 +184,29 @@ namespace NorthLab
                 return;
 
             //Draw window
-            Rect windRect = new Rect(0, 0, 256, 128);
+            windWidth = Screen.width / 5;
+            windHeight = windWidth / 2;
+            Rect windRect = new Rect(0, 0, windWidth, windHeight);
             switch (guiPosition)
             {
                 case GUIPositions.RightTop:
-                    windRect = new Rect(Screen.width - 256, 0, 256, 128);
+                    windRect = new Rect(Screen.width - windWidth, 0, windWidth, windHeight);
                     break;
 
                 case GUIPositions.RightBottom:
-                    windRect = new Rect(Screen.width - 256, Screen.height - 128, 256, 128);
+                    windRect = new Rect(Screen.width - windWidth, Screen.height - windHeight, windWidth, windHeight);
                     break;
 
                 case GUIPositions.LeftBottom:
-                    windRect = new Rect(0, Screen.height - 128, 256, 128);
+                    windRect = new Rect(0, Screen.height - windHeight, windWidth, windHeight);
                     break;
 
                 case GUIPositions.Explicit:
-                    windRect = new Rect(position.x, position.y, 256, 128);
+                    windRect = new Rect(position.x, position.y, windWidth, windHeight);
                     break;
 
                 default:
-                    windRect = new Rect(0, 0, 256, 128);
+                    windRect = new Rect(0, 0, windWidth, windHeight);
                     break;
             }
             GUI.Window(0, windRect, Window, "Snapscreen");
@@ -214,49 +217,10 @@ namespace NorthLab
         private void Window(int windowID)
         {
             //Draw "Take" button
-            if (GUI.Button(new Rect(30, 41, 196, 46), "Take"))
+            int width = windWidth - 60;
+            if (GUI.Button(new Rect(30, 41, windWidth - 60, width * 0.25f), "SNAP"))
             {
                 TakeScreenshot();
-            }
-        }
-
-        //Unhide gui
-        private void UnhideGUI()
-        {
-            hideGUI = false;
-        }
-
-        //Waiting for end of frame and then capture a screenshot as texture to crop it further
-        private IEnumerator TakeCoroutine(string path)
-        {
-            yield return new WaitForEndOfFrame();
-
-            if (!Application.isPlaying)
-            {
-                ScreenCapture.CaptureScreenshot(path);
-                yield break;
-            }
-            else
-            {
-                Texture2D capture = ScreenCapture.CaptureScreenshotAsTexture(factor);
-                if (crop)
-                {
-                    Texture2D cropped = CropImage(capture);
-                    SaveImage(cropped, path);
-                    onScreenshotTaken?.Invoke(path, cropped);
-                }
-                else
-                {
-                    SaveImage(capture, path);
-                    onScreenshotTaken?.Invoke(path, capture);
-                }
-            }
-
-            //if GUI is hidden then unhide it
-            if (hideGUI)
-            {
-                yield return new WaitForSeconds(Time.deltaTime * unhideTime);
-                UnhideGUI();
             }
         }
 
@@ -271,51 +235,97 @@ namespace NorthLab
         //Save texture2D to the disk
         private void SaveImage(Texture2D capture, string path)
         {
-            //Convert RGBA32 captured texture to the RBG24 to disable alpha channel
-            Texture2D converted = new Texture2D(capture.width, capture.height, TextureFormat.RGB24, false);
-            converted.SetPixels(capture.GetPixels());
-
-            byte[] bytes = converted.EncodeToPNG();
+            byte[] bytes = ImageConversion.EncodeToPNG(capture);
             File.WriteAllBytes(path, bytes);
         }
 
-        private void Take()
+        //Get path of the screenshot file
+        private string GetPath()
         {
-#if UNITY_EDITOR
-            //If game is not playing then open game window
-            if (!EditorApplication.isPlaying)
-            {
-                EditorApplication.ExecuteMenuItem("Window/General/Game");
-            }
-
-            //Combining file path and name
             string additional;
             if (dateStamp)
                 additional = System.DateTime.Now.ToString(" yyyy-MM-dd H-mm-ss.f") + ".png";
             else additional = ".png";
-            string finalPath = path + "/" + name + additional;
-
-            StartCoroutine(TakeCoroutine(finalPath));
-#endif
+            return path + "/" + name + additional;
         }
 
+        //Screenshot method
+        private void Take()
+        {
+            //Check target camera
+            Camera cam = cameraMode == CameraMode.MainCamera ? Camera.main : specificCamera;
+
+            if (cam == null)
+            {
+                Debug.LogError(cameraMode == CameraMode.MainCamera ? "No MainCamera is found!" : "Specific camera is null");
+                return;
+            }
+
+            Vector2Int resolution = GetMainGameViewSize();
+
+            //Grabbing the screenshot on to the rendertexture
+            RenderTexture oldTargetTexture = cam.targetTexture;
+            CameraClearFlags oldFlags = cam.clearFlags;
+            RenderTexture oldActive = RenderTexture.active;
+
+            Texture2D tex_transparent;
+            if (crop)
+            {
+                tex_transparent = new Texture2D(resolution.x - left - right, resolution.y - top - bottom, TextureFormat.ARGB32, false);
+            }
+            else
+            {
+                tex_transparent = new Texture2D(resolution.x, resolution.y, TextureFormat.ARGB32, false);
+            }
+            RenderTexture render_texture = RenderTexture.GetTemporary(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32);
+
+            Rect grab_area = new Rect(0, 0, resolution.x, resolution.y);
+            if (crop)
+            {
+                grab_area.x = left;
+                grab_area.y = top;
+                grab_area.width -= left + right;
+                grab_area.height -= top + bottom;
+            }
+
+            RenderTexture.active = render_texture;
+            cam.targetTexture = render_texture;
+
+            if (transparentBackground)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = Color.clear;
+            }
+
+            cam.Render();
+            tex_transparent.ReadPixels(grab_area, 0, 0);
+            tex_transparent.Apply();
+
+            //Save image
+            SaveImage(tex_transparent, GetPath());
+
+            //Clearing and restoring camera parameters
+            cam.clearFlags = oldFlags;
+            cam.targetTexture = oldTargetTexture;
+            RenderTexture.active = oldActive;
+            RenderTexture.ReleaseTemporary(render_texture);
+
+            if (Application.isPlaying)
+                Destroy(tex_transparent);
+            else DestroyImmediate(tex_transparent);
+        }
+
+        /// <summary>
+        /// Take the screenshot
+        /// </summary>
         public void TakeScreenshot()
         {
-            //If Unity in the play mode with GUI enabled then hide the gui and take a screenshot after few frames
-            if (Application.isPlaying && (useGUI || crop || compositionGrid))
-            {
-                hideGUI = true;
-                Invoke("Take", Time.deltaTime * 2);
-            }
-            else //else just take it immediately
-            {
-                Take();
-            }
+            Take();
         }
 
 #if UNITY_EDITOR
         #region Menu items
-        [MenuItem("NorthLab/Snapscreen/Add Snapscreen To The Main Camera")]
+        [MenuItem("Tools/Snapscreen/Add Snapscreen To The Main Camera")]
         private static void AddSnapscreenToMainCamera()
         {
             GameObject go = GameObject.FindWithTag("MainCamera");
@@ -333,13 +343,6 @@ namespace NorthLab
             {
                 Debug.LogWarning("There is no main camera in the scene. Add the 'MainCamera' tag to your camera");
             }
-        }
-
-        [MenuItem("NorthLab/Snapscreen/Create Empty Snapscreen Object")]
-        private static void CreateEmptySnapscreenObject()
-        {
-            GameObject go = new GameObject("Snapscreen");
-            go.AddComponent<Snapscreen>();
         }
         #endregion
 #endif
